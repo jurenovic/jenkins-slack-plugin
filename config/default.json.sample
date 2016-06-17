@@ -1,0 +1,8 @@
+{
+    "jenkins_url" :"",
+    "jenkins_username" :"",
+    "jenkins_token" :"",
+    "slack_token" : "",
+    "slack_webhook_url": "",
+    "slack_username":""
+}
