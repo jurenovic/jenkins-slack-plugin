@@ -23,21 +23,25 @@ valid_commands = [
     'info'
 ];
 
-all_jobs = {};
+var all_jobs = {};
 
 jenkins.all_jobs(function (err, data) {
+    console.log("all_jobs");
     if (err) {
-        return console.log(err);
+        return console.log('error; ', err);
     }
     all_jobs = data;
-    for (c in all_jobs){
-        jenkins.get_config_xml(all_jobs[c].name, function(err, data) {
-            if (err){ return console.log(err); }
+
+    for (var c in all_jobs) {
+        jenkins.get_config_xml(all_jobs[c].name, function (err, data) {
+            if (err) {
+                return console.log(err);
+            }
             var json = parser.toJson(data, {object: true});
             if (json['maven2-moduleset']
                 && json['maven2-moduleset']['scm']
                 && json['maven2-moduleset']['scm']['userRemoteConfigs']
-                && json['maven2-moduleset']['scm']['userRemoteConfigs']['hudson.plugins.git.UserRemoteConfig']){
+                && json['maven2-moduleset']['scm']['userRemoteConfigs']['hudson.plugins.git.UserRemoteConfig']) {
                 all_jobs[c].gitRepo = json['maven2-moduleset']['scm']['userRemoteConfigs']['hudson.plugins.git.UserRemoteConfig']['url'];
                 console.log("job name:", all_jobs[c].name)
                 console.log("git repo :", all_jobs[c].gitRepo)
@@ -48,12 +52,12 @@ jenkins.all_jobs(function (err, data) {
 
 function handle_commands(body) {
 
-    command_str = body.text;
+    var command_str = body.text;
     if (!command_str.trim()) {
         post_slack('Hi <@' + body.user_name + '>, please use help to see all available commands');
         return;
     }
-    commands = command_str.split(' ');
+    var commands = command_str.split(' ');
     switch (commands[0]) {
         case 'help':
             msg = 'Here are all available commands:';
@@ -65,8 +69,8 @@ function handle_commands(body) {
             break;
         case 'search':
             if (commands.length > 1) {
-                msg = 'Found matching jobs:';
-                for (c in all_jobs) {
+                var msg = 'Found matching jobs:';
+                for (var c in all_jobs) {
                     var job = all_jobs[c];
                     if (job.name.indexOf(commands[1]) > -1) {
                         msg = msg + '\n\t' + c + ' - <' + job.url + '|' + job.name + '>'
