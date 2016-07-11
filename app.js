@@ -6,6 +6,8 @@ var bodyParser = require('body-parser');
 var parser = require('xml2json');
 
 app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({extended: false}));
+
 var config = require('config');
 
 var slack = new Slack();
@@ -54,53 +56,114 @@ function handle_commands(body) {
 
     var command_str = body.text;
     if (!command_str.trim()) {
-        post_slack('Hi <@' + body.user_name + '>, please use help to see all available commands');
+        post_slack('', [
+            {
+                'text': 'Hi <@' + body.user_name + '>, please use help to see all available commands',
+                'color': 'warning'
+            }
+        ]);
         return;
     }
     var commands = command_str.split(' ');
     switch (commands[0]) {
         case 'help':
-            msg = 'Here are all available commands:';
+            var msg = '';
             for (c in valid_commands) {
-                console.log(c);
-                msg = msg + '\n\t' + c + ': `' + valid_commands[c] + '`'
+                msg = msg + '- ' + valid_commands[c] + '\n';
             }
-            post_slack(msg);
+            post_slack('', [
+                {
+                    "pretext": "Here are all available commands",
+                    "text": msg,
+                    "mrkdwn_in": [
+                        "text",
+                        "pretext"
+                    ]
+                }
+            ]);
             break;
         case 'search':
             if (commands.length > 1) {
-                var msg = 'Found matching jobs:';
+                var msg = '';
                 for (var c in all_jobs) {
                     var job = all_jobs[c];
                     if (job.name.indexOf(commands[1]) > -1) {
-                        msg = msg + '\n\t' + c + ' - <' + job.url + '|' + job.name + '>'
+                        msg = msg + c + '. - <' + job.url + '|' + job.name + '>\n'
                     }
                 }
-                msg = msg + '\nPlease select job';
-                post_slack(msg);
+                post_slack('', [
+                    {
+                        "pretext": "Found matching jobs",
+                        "text": msg,
+                        "mrkdwn_in": [
+                            "text",
+                            "pretext"
+                        ]
+                    },
+                    {
+                        "pretext": "Please select a job by responding with ```/jenkins select [number]```",
+                        "mrkdwn_in": [
+                            "text",
+                            "pretext"
+                        ]
+                    }
+                ]);
             } else {
-                post_slack('You have to specify a search query');
+                post_slack('', [
+                    {
+                        'text': 'You have to specify a search query with ```/jenkins search [name]```',
+                        'color': 'warning'
+                    }
+                ]);
             }
             break;
-        case 'build':
-            if (get_job(body.user_id)) {
-                if (commands.length > 1) {
-                    jenkins.build(get_job(body.user_id).name, {key: 'value'}, function (err, data) {
-                        if (err) {
-                            return console.log(err);
-                        }
-                        console.log(data);
-                    });
-                } else {
-                    jenkins.build(get_job(body.user_id).name, function (err, data) {
-                        if (err) {
-                            return console.log(err);
-                        }
-                        console.log(data);
-                    });
+        case 'listall':
+            var msg = '';
+            for (c in all_jobs) {
+                var job = all_jobs[c];
+                msg = msg + c + '. - <' + job.url + '|' + job.name + '>\n'
+            }
+            post_slack('', [
+                {
+                    "pretext": "Here are all available jobs on build server",
+                    "text": msg,
+                    "mrkdwn_in": [
+                        "text",
+                        "pretext"
+                    ]
+                },
+                {
+                    "pretext": "Please select a job by responding with ```/jenkins select [number]```",
+                    "mrkdwn_in": [
+                        "text",
+                        "pretext"
+                    ]
                 }
+            ]);
+            break;
+        case 'select':
+            if (commands.length > 1) {
+                users[body.user_id] = {};
+                users[body.user_id]['selected_job'] = all_jobs[commands[1]];
+                console.log(users[body.user_id]['selected_job']);
+                post_slack('', [
+                    {
+                        "pretext": "You have selected job",
+                        "text": '*' + users[body.user_id]['selected_job'].name + '*',
+                        'color': 'good',
+                        "mrkdwn_in": [
+                            "text",
+                            "pretext"
+                        ]
+                    }
+                ]);
             } else {
-                post_slack('You have to specify a job name');
+                post_slack('', [
+                    {
+                        'text': 'No job number specified',
+                        'color': 'danger'
+                    }
+                ]);
             }
             break;
         case 'info':
@@ -110,42 +173,102 @@ function handle_commands(body) {
                         return console.log(err);
                     }
                     for (c in data.property) {
-                        if (data.property[c] != undefined) {
-                            if (data.property[c]['parameterDefinitions']) {
-                                prop = data.property[c]['parameterDefinitions'];
-                                users[body.user_id]['selected_job']['properties'] = [];
-                                for (p in prop) {
+                        if (data.property[c] != undefined && data.property[c]['parameterDefinitions']) {
+                            var prop = data.property[c]['parameterDefinitions'];
+                            console.log('prop, ', prop);
+                            users[body.user_id]['selected_job']['properties'] = [];
+                            for (var p in prop) {
+                                if (prop[p]['type'] == 'StringParameterDefinition') {
                                     users[body.user_id]['selected_job']['properties'].push(prop[p]['name']);
+
+                                } else if (prop[p]['type'] == 'PT_BRANCH') {
+                                    users[body.user_id]['selected_job']['git_branches'] = [];
                                 }
                             }
+
+                            post_slack("This job depends on custom build parameters", [
+                                {
+                                    "text": "To build selected job please use ```/jenkins build " + prop[p]['name'] + "=value```",
+                                    'color': 'warning',
+                                    "mrkdwn_in": [
+                                        "text",
+                                        "pretext"
+                                    ]
+                                }
+                            ]);
                         }
                     }
                 });
             } else {
-                post_slack('You have to specify a job name');
+                post_slack('', [
+                    {
+                        'text': 'You first have to select a job name',
+                        'color': 'warning'
+                    }
+                ]);
             }
             break;
-        case 'listall':
-            msg = 'Here are all available commands:';
-            for (c in all_jobs) {
-                var job = all_jobs[c];
-                msg = msg + '\n\t' + c + ' - <' + job.url + '|' + job.name + '>'
-            }
-            msg = msg + '\nPlease select job';
-            post_slack(msg);
-            break;
-        case 'select':
-            if (commands.length > 1) {
-                console.log('commands, ', commands);
-                users[body.user_id] = {};
-                users[body.user_id]['selected_job'] = all_jobs[commands[1]];
-                console.log(users[body.user_id]['selected_job']);
-                msg = 'Selected job :`' + users[body.user_id]['selected_job'].name + '`';
-                post_slack(msg);
+        case 'build':
+            if (get_job(body.user_id)) {
+                if (commands.length > 1) {
+                    var parms = {};
+                    var params = commands[1].split('=');
+                    parms[params[0]] = params[1];
+                    console.log('params, ', params);
+                    console.log('parms, ', parms);
+
+                    jenkins.build(get_job(body.user_id).name, parms, function (err, data) {
+                        if (err) {
+                            return console.log(err);
+                        }
+                        console.log(data);
+                        post_slack("", [
+                            {
+                                "pretext": "Build started successfully",
+                                "text": '<' + data['location'] + '|' + get_job(body.user_id).name + '>\n',
+                                'color': 'good',
+                                "mrkdwn_in": [
+                                    "text",
+                                    "pretext"
+                                ]
+                            }
+                        ]);
+                    });
+                } else {
+                    jenkins.build(get_job(body.user_id).name, function (err, data) {
+                        if (err) {
+                            return console.log(err);
+                        }
+                        post_slack("", [
+                            {
+                                "pretext": "Build started successfully",
+                                'color': 'good',
+                                "mrkdwn_in": [
+                                    "text",
+                                    "pretext"
+                                ]
+                            }
+                        ]);
+                        console.log(data);
+                    });
+                }
             } else {
-                post_slack('No job number specified');
+                post_slack('', [
+                    {
+                        'text': 'You have to specify a job name',
+                        'color': 'warning'
+                    }
+                ]);
             }
+            break;
+
         default:
+            post_slack('', [
+                {
+                    'text': 'Hi <@' + body.user_name + '>, please use help to see all available commands',
+                    'color': 'warning'
+                }
+            ]);
             break;
     }
 }
@@ -157,13 +280,13 @@ function get_job(user_id) {
     return undefined;
 }
 
-function post_slack(message) {
+function post_slack(text, attachments) {
     var channel = '#myself';
     slack.webhook({
         channel: channel,
         username: slack_username,
-        text: message,
-        mrkdwn: true
+        text: text,
+        attachments: attachments
     }, function (err, response) {
         console.log(response);
     });
@@ -179,11 +302,10 @@ app.get('/', function (req, res) {
 
 // POST method route
 app.post('/', function (req, res) {
-    // console.log("req.body", req.body)
-    console.log("req.body", req.body)
+    // console.log("req.body", req.body);
     if (req.body.token = config.get('slack_token')) {
         handle_commands(req.body);
-        res.send('Ok');
+        res.send();
     } else {
         res.status(401);
         res.send('Unauthorized');
