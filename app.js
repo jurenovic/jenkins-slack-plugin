@@ -175,7 +175,6 @@ function handle_commands(body) {
                                     if (err) {
                                         return console.log(err);
                                     }
-                                    console.log('data:', data);
                                     var json = parser.toJson(data, {object: true});
                                     if (json['maven2-moduleset']
                                         && json['maven2-moduleset']['scm']
