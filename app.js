@@ -40,23 +40,6 @@ jenkins.all_jobs(function (err, data) {
         return console.log('error; ', err);
     }
     all_jobs = data;
-
-    for (var c in all_jobs) {
-        jenkins.get_config_xml(all_jobs[c].name, function (err, data) {
-            if (err) {
-                return console.log(err);
-            }
-            var json = parser.toJson(data, {object: true});
-            if (json['maven2-moduleset']
-                && json['maven2-moduleset']['scm']
-                && json['maven2-moduleset']['scm']['userRemoteConfigs']
-                && json['maven2-moduleset']['scm']['userRemoteConfigs']['hudson.plugins.git.UserRemoteConfig']) {
-                all_jobs[c].gitRepo = json['maven2-moduleset']['scm']['userRemoteConfigs']['hudson.plugins.git.UserRemoteConfig']['url'];
-                console.log("job name:", all_jobs[c].name)
-                console.log("git repo :", all_jobs[c].gitRepo)
-            }
-        });
-    }
 });
 
 function handle_commands(body) {
@@ -102,6 +85,7 @@ function handle_commands(body) {
                     {
                         "pretext": "Found matching jobs",
                         "text": msg,
+                        'color': 'good',
                         "mrkdwn_in": [
                             "text",
                             "pretext"
@@ -119,7 +103,7 @@ function handle_commands(body) {
                 post_slack('', [
                     {
                         'text': 'You have to specify a search query with ```/jenkins search [name]```',
-                        'color': 'warning'
+                        'color': 'danger'
                     }
                 ]);
             }
@@ -134,6 +118,7 @@ function handle_commands(body) {
                 {
                     "pretext": "Here are all available jobs on build server",
                     "text": msg,
+                    'color': 'good',
                     "mrkdwn_in": [
                         "text",
                         "pretext"
@@ -185,39 +170,68 @@ function handle_commands(body) {
                                 }
                             }
 
-                            if (users[body.user_id]['selected_job'].github){
-                                github.repos.getBranches({
-                                    user:'qapital',
-                                    repo:'qapital-android'
-                                }, function(err, res) {
-                                    var msg = '';
-                                    for (var b in res){
-                                        if (res[b].name != undefined){
-                                            users[body.user_id]['selected_job']['git_branches'].push(res[b].name);
-                                            msg = msg + '- ' + res[b].name + '\n';
-                                        }
+                            if (users[body.user_id]['selected_job'].github) {
+                                jenkins.get_config_xml(users[body.user_id]['selected_job'].name, function (err, data) {
+                                    if (err) {
+                                        return console.log(err);
                                     }
-                                    post_slack("This job depends on custom build parameters", [
-                                        {
-                                            "text": "To build selected job please use ```/jenkins build " + prop[p]['name'] + "=selectedBranch```",
-                                            'color': 'warning',
-                                            "mrkdwn_in": [
-                                                "text",
-                                                "pretext"
-                                            ]
-                                        },
-                                        {
-                                            "pretext": "Available branches to build:",
-                                            "text": msg,
-                                            'color': 'warning',
-                                            "mrkdwn_in": [
-                                                "text",
-                                                "pretext"
-                                            ]
-                                        }
-                                    ]);
+                                    console.log('data:', data);
+                                    var json = parser.toJson(data, {object: true});
+                                    if (json['maven2-moduleset']
+                                        && json['maven2-moduleset']['scm']
+                                        && json['maven2-moduleset']['scm']['userRemoteConfigs']
+                                        && json['maven2-moduleset']['scm']['userRemoteConfigs']['hudson.plugins.git.UserRemoteConfig']) {
+                                        users[body.user_id]['selected_job'].gitRepo = json['maven2-moduleset']['scm']['userRemoteConfigs']['hudson.plugins.git.UserRemoteConfig']['url'];
+                                    } else if (json['project']
+                                        && json['project']['scm']
+                                        && json['project']['scm']['userRemoteConfigs']
+                                        && json['project']['scm']['userRemoteConfigs']['hudson.plugins.git.UserRemoteConfig']) {
+                                        users[body.user_id]['selected_job'].gitRepo = json['project']['scm']['userRemoteConfigs']['hudson.plugins.git.UserRemoteConfig']['url'];
+                                    }
+                                    if (users[body.user_id]['selected_job'].gitRepo){
+                                        var repoName = users[body.user_id]['selected_job'].gitRepo.split('/')[1];
+                                        repoName = repoName.split('.git')[0];
+                                        github.repos.getBranches({
+                                            user:'qapital',
+                                            repo: repoName
+                                        }, function(err, res) {
+                                            var msg = '';
+                                            for (var b in res){
+                                                if (res[b].name != undefined){
+                                                    users[body.user_id]['selected_job']['git_branches'].push(res[b].name);
+                                                    msg = msg + '- ' + res[b].name + '\n';
+                                                }
+                                            }
+                                            post_slack("This job depends on custom build parameters", [
+                                                {
+                                                    "text": "To build selected job please use ```/jenkins build " + prop[p]['name'] + "=selectedBranch```",
+                                                    'color': 'warning',
+                                                    "mrkdwn_in": [
+                                                        "text",
+                                                        "pretext"
+                                                    ]
+                                                },
+                                                {
+                                                    "pretext": "Available branches to build:",
+                                                    "text": msg,
+                                                    'color': 'warning',
+                                                    "mrkdwn_in": [
+                                                        "text",
+                                                        "pretext"
+                                                    ]
+                                                }
+                                            ]);
+                                        });
+                                    }else{
+                                        post_slack('', [
+                                            {
+                                                'text': 'Can\' find github repo inside jenkins configuration',
+                                                'color': 'danger'
+                                            }
+                                        ]);
+                                    }
                                 });
-                            }else{
+                            } else {
                                 post_slack("This job depends on custom build parameters", [
                                     {
                                         "text": "To build selected job please use ```/jenkins build " + prop[p]['name'] + "=value```",
