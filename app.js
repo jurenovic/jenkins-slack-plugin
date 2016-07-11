@@ -180,7 +180,7 @@ app.get('/', function (req, res) {
 // POST method route
 app.post('/', function (req, res) {
     // console.log("req.body", req.body)
-    // console.log("req.body", req.body)
+    console.log("req.body", req.body)
     if (req.body.token = config.get('slack_token')) {
         handle_commands(req.body);
         res.send('Ok');
