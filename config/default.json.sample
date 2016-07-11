@@ -5,4 +5,5 @@
     "slack_token" : "",
     "slack_webhook_url": "",
     "slack_username":""
+    "git_token": ""
 }

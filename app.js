@@ -9,6 +9,14 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended: false}));
 
 var config = require('config');
+var GitHubApi = require("github");
+
+var github = new GitHubApi();
+
+github.authenticate({
+    type: "oauth",
+    token: config.get('git_token')
+});
 
 var slack = new Slack();
 slack.setWebhook(config.get('slack_webhook_url'));
@@ -21,8 +29,7 @@ valid_commands = [
     'search',
     'build',
     'listall',
-    'select',
-    'info'
+    'select'
 ];
 
 var all_jobs = {};
@@ -157,17 +164,7 @@ function handle_commands(body) {
                         ]
                     }
                 ]);
-            } else {
-                post_slack('', [
-                    {
-                        'text': 'No job number specified',
-                        'color': 'danger'
-                    }
-                ]);
-            }
-            break;
-        case 'info':
-            if (get_job(body.user_id)) {
+
                 jenkins.job_info(get_job(body.user_id).name, function (err, data) {
                     if (err) {
                         return console.log(err);
@@ -177,33 +174,70 @@ function handle_commands(body) {
                             var prop = data.property[c]['parameterDefinitions'];
                             console.log('prop, ', prop);
                             users[body.user_id]['selected_job']['properties'] = [];
+                            users[body.user_id]['selected_job']['git_branches'] = [];
+                            users[body.user_id]['selected_job'].github = false;
                             for (var p in prop) {
                                 if (prop[p]['type'] == 'StringParameterDefinition') {
                                     users[body.user_id]['selected_job']['properties'].push(prop[p]['name']);
 
                                 } else if (prop[p]['type'] == 'PT_BRANCH') {
-                                    users[body.user_id]['selected_job']['git_branches'] = [];
+                                    users[body.user_id]['selected_job'].github = true;
                                 }
                             }
 
-                            post_slack("This job depends on custom build parameters", [
-                                {
-                                    "text": "To build selected job please use ```/jenkins build " + prop[p]['name'] + "=value```",
-                                    'color': 'warning',
-                                    "mrkdwn_in": [
-                                        "text",
-                                        "pretext"
-                                    ]
-                                }
-                            ]);
+                            if (users[body.user_id]['selected_job'].github){
+                                github.repos.getBranches({
+                                    user:'qapital',
+                                    repo:'qapital-android'
+                                }, function(err, res) {
+                                    var msg = '';
+                                    for (var b in res){
+                                        if (res[b].name != undefined){
+                                            users[body.user_id]['selected_job']['git_branches'].push(res[b].name);
+                                            msg = msg + '- ' + res[b].name + '\n';
+                                        }
+                                    }
+                                    post_slack("This job depends on custom build parameters", [
+                                        {
+                                            "text": "To build selected job please use ```/jenkins build " + prop[p]['name'] + "=selectedBranch```",
+                                            'color': 'warning',
+                                            "mrkdwn_in": [
+                                                "text",
+                                                "pretext"
+                                            ]
+                                        },
+                                        {
+                                            "pretext": "Available branches to build:",
+                                            "text": msg,
+                                            'color': 'warning',
+                                            "mrkdwn_in": [
+                                                "text",
+                                                "pretext"
+                                            ]
+                                        }
+                                    ]);
+                                });
+                            }else{
+                                post_slack("This job depends on custom build parameters", [
+                                    {
+                                        "text": "To build selected job please use ```/jenkins build " + prop[p]['name'] + "=value```",
+                                        'color': 'warning',
+                                        "mrkdwn_in": [
+                                            "text",
+                                            "pretext"
+                                        ]
+                                    }
+                                ]);
+
+                            }
                         }
                     }
                 });
             } else {
                 post_slack('', [
                     {
-                        'text': 'You first have to select a job name',
-                        'color': 'warning'
+                        'text': 'No job number specified',
+                        'color': 'danger'
                     }
                 ]);
             }
@@ -225,7 +259,7 @@ function handle_commands(body) {
                         post_slack("", [
                             {
                                 "pretext": "Build started successfully",
-                                "text": '<' + data['location'] + '|' + get_job(body.user_id).name + '>\n',
+                                "text": '*' + users[body.user_id]['selected_job'].name + '*',
                                 'color': 'good',
                                 "mrkdwn_in": [
                                     "text",
@@ -242,6 +276,7 @@ function handle_commands(body) {
                         post_slack("", [
                             {
                                 "pretext": "Build started successfully",
+                                "text": '*' + users[body.user_id]['selected_job'].name + '*',
                                 'color': 'good',
                                 "mrkdwn_in": [
                                     "text",
