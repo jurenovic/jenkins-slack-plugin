@@ -48,8 +48,13 @@ function handle_commands(body) {
     if (!command_str.trim()) {
         post_slack('', [
             {
-                'text': 'Hi <@' + body.user_name + '>, please use help to see all available commands',
-                'color': 'warning'
+                'pretext': 'Hi <@' + body.user_name + '>, please use help to see all available commands',
+                "text": "Please responding with ```/jenkins help```",
+                'color': 'warning',
+                "mrkdwn_in": [
+                    "text",
+                    "pretext"
+                ]
             }
         ]);
         return;
