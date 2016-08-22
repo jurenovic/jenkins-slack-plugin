@@ -204,7 +204,7 @@ function handle_commands(body) {
                                             for (var b in res){
                                                 if (res[b].name != undefined){
                                                     users[body.user_id]['selected_job']['git_branches'].push(res[b].name);
-                                                    msg = msg + indx + ') `' + res[b].name + '`\n';
+                                                    msg = msg + (indx+1) + ' - `' + res[b].name + '`\n';
                                                 }
                                             }
                                             post_slack("This job depends on custom build parameters", [
@@ -226,8 +226,7 @@ function handle_commands(body) {
                                                     ]
                                                 },
                                                 {
-                                                    "pretext": "Which branch you want to build?",
-                                                    "text": "To ease your work respond with ```/jenkins build branchNumber```",
+                                                    "text": "To ease your work respond with ```/jenkins buildNum [branchNumber]```",
                                                     'color': 'warning',
                                                     "mrkdwn_in": [
                                                         "text",
@@ -314,6 +313,51 @@ function handle_commands(body) {
                         ]);
                         console.log(data);
                     });
+                }
+            } else {
+                post_slack('', [
+                    {
+                        'text': 'You have to specify a job name',
+                        'color': 'warning'
+                    }
+                ]);
+            }
+            break;
+        case 'buildNum':
+            if (get_job(body.user_id)) {
+                if (commands.length > 1) {
+                    var branchNum = commands[1];
+                    users[body.user_id]['selected_job']
+
+                    var parms = {};
+
+                    parms[users[body.user_id]['selected_job']['properties'][0]] = users[body.user_id]['selected_job']['git_branches'][branchNum];
+                    console.log('parms, ', parms);
+
+                    jenkins.build(get_job(body.user_id).name, parms, function (err, data) {
+                        if (err) {
+                            return console.log(err);
+                        }
+                        console.log(data);
+                        post_slack("", [
+                            {
+                                "pretext": "Build started successfully",
+                                "text": '*' + users[body.user_id]['selected_job'].name + '*',
+                                'color': 'good',
+                                "mrkdwn_in": [
+                                    "text",
+                                    "pretext"
+                                ]
+                            }
+                        ]);
+                    });
+                } else{
+                    post_slack('', [
+                        {
+                            'text': 'You have to specify a job name',
+                            'color': 'warning'
+                        }
+                    ]);
                 }
             } else {
                 post_slack('', [
