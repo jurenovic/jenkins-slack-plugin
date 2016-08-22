@@ -200,10 +200,11 @@ function handle_commands(body) {
                                             repo: repoName
                                         }, function(err, res) {
                                             var msg = '';
+                                            var indx = 0;
                                             for (var b in res){
                                                 if (res[b].name != undefined){
                                                     users[body.user_id]['selected_job']['git_branches'].push(res[b].name);
-                                                    msg = msg + '- ' + res[b].name + '\n';
+                                                    msg = msg + indx + ') `' + res[b].name + '`\n';
                                                 }
                                             }
                                             post_slack("This job depends on custom build parameters", [
@@ -218,6 +219,15 @@ function handle_commands(body) {
                                                 {
                                                     "pretext": "Available branches to build:",
                                                     "text": msg,
+                                                    'color': 'warning',
+                                                    "mrkdwn_in": [
+                                                        "text",
+                                                        "pretext"
+                                                    ]
+                                                },
+                                                {
+                                                    "pretext": "Which branch you want to build?",
+                                                    "text": "To ease your work respond with ```/jenkins build branchNumber```",
                                                     'color': 'warning',
                                                     "mrkdwn_in": [
                                                         "text",
