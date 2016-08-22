@@ -360,21 +360,11 @@ app.get('/', function (req, res) {
 
 // POST method route
 app.post('/', function (req, res) {
-    console.log("req.body", req.body);
+    // console.log("req.body", req.body);
     if (req.body.token = config.get('slack_token')) {
-        post_slack('', [
-            {
-                "pretext": "/jenkins " + req.body.text,
-                "mrkdwn_in": [
-                    "text",
-                    "pretext"
-                ]
-            }
-        ], undefined, req.body.user_name);
-
+        res.writeHead(200, {"Content-Type": "application/json"});
+        res.end('{"response_type": "in_channel"}');
         handle_commands(req.body);
-        res.send();
-
     } else {
         res.status(401);
         res.send('Unauthorized');
