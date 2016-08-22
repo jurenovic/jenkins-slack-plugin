@@ -333,11 +333,16 @@ function get_job(user_id) {
     return undefined;
 }
 
-function post_slack(text, attachments) {
-    var channel = '#myself';
+function post_slack(text, attachments, channel, username) {
+    if (typeof channel === 'undefined') {
+        channel = '#myself';
+    }
+    if (typeof username === 'undefined') {
+        username = slack_username;
+    }
     slack.webhook({
         channel: channel,
-        username: slack_username,
+        username: username,
         text: text,
         attachments: attachments
     }, function (err, response) {
@@ -355,10 +360,21 @@ app.get('/', function (req, res) {
 
 // POST method route
 app.post('/', function (req, res) {
-    // console.log("req.body", req.body);
+    console.log("req.body", req.body);
     if (req.body.token = config.get('slack_token')) {
+        post_slack('', [
+            {
+                "pretext": "`/jenkins " + req.body.text + "`",
+                "mrkdwn_in": [
+                    "text",
+                    "pretext"
+                ]
+            }
+        ], undefined, req.body.username);
+
         handle_commands(req.body);
         res.send();
+
     } else {
         res.status(401);
         res.send('Unauthorized');
