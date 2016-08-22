@@ -364,13 +364,13 @@ app.post('/', function (req, res) {
     if (req.body.token = config.get('slack_token')) {
         post_slack('', [
             {
-                "pretext": "`/jenkins " + req.body.text + "`",
+                "pretext": "/jenkins " + req.body.text,
                 "mrkdwn_in": [
                     "text",
                     "pretext"
                 ]
             }
-        ], undefined, req.body.username);
+        ], undefined, req.body.user_name);
 
         handle_commands(req.body);
         res.send();
