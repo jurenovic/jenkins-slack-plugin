@@ -329,27 +329,38 @@ function handle_commands(body) {
                     var branchNum = parseInt(commands[1]) - 1;
 
                     var parms = {};
+                    var key = users[body.user_id]['selected_job']['properties'][0];
+                    var val = users[body.user_id]['selected_job']['git_branches'][branchNum];
+                    if (typeof val === 'undefined') {
+                        post_slack('', [
+                            {
+                                'text': 'Something went wrong',
+                                'color': 'error'
+                            }
+                        ]);
+                    }else{
+                        parms[key] = val;
+                        console.log('parms, ', parms);
+                        jenkins.build(get_job(body.user_id).name, parms, function (err, data) {
+                            if (err) {
+                                return console.log(err);
+                            }
+                            console.log(data);
+                            post_slack("", [
+                                {
+                                    "pretext": "Build started successfully",
+                                    "text": '*' + users[body.user_id]['selected_job'].name + '*',
+                                    'color': 'good',
+                                    "mrkdwn_in": [
+                                        "text",
+                                        "pretext"
+                                    ]
+                                }
+                            ]);
+                        });
 
-                    parms[users[body.user_id]['selected_job']['properties'][0]] = users[body.user_id]['selected_job']['git_branches'][branchNum];
-                    console.log('parms, ', parms);
+                    }
 
-                    // jenkins.build(get_job(body.user_id).name, parms, function (err, data) {
-                    //     if (err) {
-                    //         return console.log(err);
-                    //     }
-                    //     console.log(data);
-                    //     post_slack("", [
-                    //         {
-                    //             "pretext": "Build started successfully",
-                    //             "text": '*' + users[body.user_id]['selected_job'].name + '*',
-                    //             'color': 'good',
-                    //             "mrkdwn_in": [
-                    //                 "text",
-                    //                 "pretext"
-                    //             ]
-                    //         }
-                    //     ]);
-                    // });
                 } else{
                     post_slack('', [
                         {
