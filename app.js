@@ -203,8 +203,10 @@ function handle_commands(body) {
                                             var indx = 0;
                                             for (var b in res){
                                                 if (res[b].name != undefined){
+                                                    indx = indx + 1;
                                                     users[body.user_id]['selected_job']['git_branches'].push(res[b].name);
-                                                    msg = msg + (indx+1) + ' - `' + res[b].name + '`\n';
+                                                    msg = msg + indx + ' - `' + res[b].name + '`\n';
+
                                                 }
                                             }
                                             post_slack("This job depends on custom build parameters", [
